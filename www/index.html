@@ -33,11 +33,13 @@ h2{margin:0 0 4px;font-size:20px}
 .seg input:checked+span{font-weight:700;color:var(--pri)}
 .seg label:has(input:checked){border-color:var(--pri)}
 .box{border:1px solid var(--bd);background:var(--bg);border-radius:10px;padding:10px;font-weight:700;min-height:44px}
-.logo{width:56px;height:56px;border-radius:12px}
+.logo{width:110px;height:110px;object-fit:contain;background:#fff;border-radius:16px}
 #login{position:fixed;inset:0;background:var(--bg);z-index:9;display:flex;flex-direction:column;justify-content:center;align-items:center;padding:24px;gap:10px}
-#login .logo{width:120px;height:120px;border-radius:26px}
+#login .logo{width:200px;height:200px}
 #login input{max-width:320px}
 #login button{width:100%;max-width:320px}
+#md{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:20;display:flex;align-items:center;justify-content:center;padding:20px}
+#md .card{width:100%;max-width:360px;margin:0}
 #msg{min-height:20px;font-size:14px;color:var(--ok)}
 .err{color:var(--wr)!important}
 </style>
@@ -45,7 +47,6 @@ h2{margin:0 0 4px;font-size:20px}
 <body>
 <div id="login">
   <img class="logo" src="logo.png" alt="أسواق بدر">
-  <h2>أسواق بدر</h2>
   <input type="text" id="lu" placeholder="اسم المستخدم" autocomplete="off">
   <input type="password" id="lp" placeholder="كلمة المرور" inputmode="numeric" autocomplete="off">
   <div id="le" class="err" style="min-height:20px"></div>
@@ -54,7 +55,7 @@ h2{margin:0 0 4px;font-size:20px}
 <div id="app" hidden>
 <div class="card row">
   <img class="logo" src="logo.png" alt="">
-  <h2 style="flex:1;margin:0">أسواق بدر</h2>
+  <div style="flex:1"></div>
   <button id="bOut">خروج</button>
 </div>
 <div class="card">
@@ -70,16 +71,16 @@ h2{margin:0 0 4px;font-size:20px}
 <div class="card">
   <button class="p" style="width:100%" id="bScan">📷 مسح الباركود بالكاميرا</button>
   <div id="reader" style="margin-top:8px"></div>
-  <input type="search" id="q" placeholder="بحث بالاسم أو الباركود" style="margin-top:8px">
+  <input type="search" id="q" placeholder="بحث بالمنتج أو الباركود" style="margin-top:8px">
   <div id="results"></div>
 </div>
 
 <div class="card" id="prod" hidden>
-  <h2 id="pn"></h2>
-  <div class="mut" id="pc"></div>
+  <div class="mut">المنتج</div><div class="box" id="pn" style="font-size:18px"></div>
+  <div class="mut" id="pc" style="margin-top:4px"></div>
   <div class="row" style="margin-top:8px;align-items:stretch">
-    <div style="flex:1"><div class="mut">الفرع</div><div class="box" id="pbr"></div></div>
-    <div style="flex:1"><div class="mut">الكمية الموجودة</div><div class="box" id="poh"></div></div>
+    <div style="flex:1"><div class="mut">الموقع</div><div class="box" id="pbr"></div></div>
+    <div style="flex:1"><div class="mut">الكمية في المخزن</div><div class="box" id="poh"></div></div>
   </div>
   <div class="note" id="prev" hidden>
     <div id="prevTxt"></div>
@@ -97,46 +98,81 @@ h2{margin:0 0 4px;font-size:20px}
   </div>
 </div>
 
+<div class="card">
+  <button class="p" style="width:100%" id="bFin">✅ إنهاء الجرد</button>
+  <div class="mut" style="margin-top:6px">يحفظ ملف التصدير ثم يصفّر الكميات المسجلة (يطلب كلمة المرور).</div>
+</div>
+<div id="md" hidden><div class="card">
+  <div id="mt" style="margin-bottom:8px"></div>
+  <input type="password" id="mi" inputmode="numeric" placeholder="كلمة المرور" hidden>
+  <div class="row" style="margin-top:10px"><button class="f p" id="my"></button><button class="f" id="mn"></button></div>
+</div></div>
 </div>
 <script src="xlsx.full.min.js"></script>
 <script src="html5-qrcode.min.js"></script>
 <script>
 const $=id=>document.getElementById(id);
-let products=[],counts={},cur=null,scanner=null,scanning=false;
+const DEF=['معرف خارجي','Barcode','المنتج','الكمية','الكمية المحسوبة','وحدة القياس','الموقع'];
+let products=[],counts={},hdr=DEF,cur=null,scanner=null,scanning=false;
 
-function load(){try{products=JSON.parse(localStorage.getItem('inv_p')||'[]');counts=JSON.parse(localStorage.getItem('inv_c')||'{}')}catch(e){products=[];counts={}}}
-function save(){try{localStorage.setItem('inv_p',JSON.stringify(products));localStorage.setItem('inv_c',JSON.stringify(counts))}catch(e){}}
+function load(){try{products=JSON.parse(localStorage.getItem('inv_p2')||'[]');counts=JSON.parse(localStorage.getItem('inv_c2')||'{}');hdr=JSON.parse(localStorage.getItem('inv_h2')||'null')||DEF}catch(e){products=[];counts={};hdr=DEF}}
+function save(){try{localStorage.setItem('inv_p2',JSON.stringify(products));localStorage.setItem('inv_c2',JSON.stringify(counts));localStorage.setItem('inv_h2',JSON.stringify(hdr))}catch(e){}}
 function say(t,err){const m=$('msg');m.textContent=t;m.className=err?'err':''}
 function stat(){$('stat').textContent=`المنتجات: ${products.length} — تم جردها: ${Object.keys(counts).length}`}
 const norm=s=>String(s??'').trim();
+const cell=v=>typeof v==='number'?String(v):norm(v);
+
+function dlg(text,{input=false,yes='تأكيد',no='إلغاء'}={}){
+  return new Promise(res=>{
+    $('mt').textContent=text;$('mi').hidden=!input;$('mi').value='';$('my').textContent=yes;$('mn').textContent=no;$('md').hidden=false;
+    if(input)$('mi').focus();
+    const end=v=>{$('md').hidden=true;res(v)};
+    $('my').onclick=()=>end(input?$('mi').value:true);$('mn').onclick=()=>end(input?null:false);
+  });
+}
 
 $('bImp').onclick=()=>$('file').click();
 $('file').onchange=async e=>{
   const f=e.target.files[0];if(!f)return;
   try{
     const wb=XLSX.read(await f.arrayBuffer(),{type:'array'});
-    const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,raw:false,defval:''});
-    if(rows.length&&/id|كود|باركود|رقم/i.test(norm(rows[0][0])))rows.shift();
-    products=rows.filter(r=>norm(r[0])).map(r=>({id:norm(r[0]),name:norm(r[1]),cost:norm(r[2]),price:norm(r[3]),onhand:norm(r[4]),branch:norm(r[5])}));
+    const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,raw:true,defval:''});
+    hdr=DEF;
+    if(rows.length&&/معرف|barcode|id/i.test(cell(rows[0][0])+' '+cell(rows[0][1]))){
+      const h=rows.shift();hdr=DEF.map((d,i)=>norm(h[i])||d);
+    }
+    products=[];
+    rows.forEach((r,i)=>{
+      if(!cell(r[1])&&!cell(r[2]))return;
+      const x=cell(r[0]);
+      products.push({id:x||('row'+i),x:x,bc:cell(r[1]),rawbc:r[1],name:cell(r[2]),qty:r[3],unit:cell(r[5]),loc:cell(r[6])});
+    });
     counts={};save();stat();say(`تم استيراد ${products.length} منتج`);
   }catch(err){say('تعذر قراءة الملف',1)}
   e.target.value='';
 };
 
-function find(code){code=norm(code);return products.find(p=>p.id===code)||products.find(p=>p.id.replace(/^0+/,'')===code.replace(/^0+/,''))}
-
-$('q').oninput=()=>{
-  const t=norm($('q').value).toLowerCase();const box=$('results');box.innerHTML='';
-  if(!t)return;
-  const hit=products.filter(p=>p.id.toLowerCase().includes(t)||p.name.toLowerCase().includes(t)).slice(0,20);
-  if(!hit.length){box.innerHTML='<div class="mut" style="padding:8px">لا توجد نتائج</div>';return}
-  hit.forEach(p=>{const d=document.createElement('div');d.className='res';
-    d.textContent=p.name+' — '+p.id+(counts[p.id]!=null?'  ✓ '+counts[p.id]:'');
+function find(code){
+  code=cell(code);const z=code.replace(/^0+/,'');
+  return products.filter(p=>p.bc&&(p.bc===code||p.bc.replace(/^0+/,'')===z));
+}
+function showList(list){
+  const box=$('results');box.innerHTML='';
+  if(!list.length){box.innerHTML='<div class="mut" style="padding:8px">لا توجد نتائج</div>';return}
+  list.slice(0,20).forEach(p=>{const d=document.createElement('div');d.className='res';
+    d.textContent=p.name+' — '+p.bc+(p.loc?' — '+p.loc:'')+(counts[p.id]!=null?'  ✓ '+counts[p.id]:'');
     d.onclick=()=>{pick(p);box.innerHTML='';$('q').value=''};box.appendChild(d)});
+}
+$('q').oninput=()=>{
+  const t=norm($('q').value).toLowerCase();
+  if(!t){$('results').innerHTML='';return}
+  showList(products.filter(p=>p.bc.toLowerCase().includes(t)||p.name.toLowerCase().includes(t)));
 };
 
 function pick(p){
-  cur=p;$('prod').hidden=false;$('pn').textContent=p.name;$('pc').textContent='الباركود: '+p.id;$('pbr').textContent=p.branch||'—';$('poh').textContent=p.onhand!==''?p.onhand:'—';
+  cur=p;$('prod').hidden=false;$('pn').textContent=p.name;$('pc').textContent='الباركود: '+(p.bc||'—');
+  $('pbr').textContent=p.loc||'—';
+  $('poh').textContent=(p.qty!==''&&p.qty!=null?p.qty:'—')+(p.unit?' '+p.unit:'');
   $('qty').value='';
   const has=counts[p.id]!=null;$('prev').hidden=!has;
   if(has){$('prevTxt').textContent='⚠️ تم تسجيل هذا المنتج من قبل. الكمية الحالية: '+counts[p.id];
@@ -172,32 +208,44 @@ $('bScan').onclick=async()=>{
     scanner=scanner||new Html5Qrcode('reader');
     await scanner.start({facingMode:'environment'},{fps:10,qrbox:{width:250,height:120}},async code=>{
       await stopScan();if(navigator.vibrate)navigator.vibrate(80);
-      const p=find(code);
-      if(p){say('');pick(p)}else say('الباركود '+code+' غير موجود في الملف',1);
+      const m=find(code);
+      if(m.length===1){say('');pick(m[0])}
+      else if(m.length>1){say('الباركود موجود في أكثر من موقع، اختر:');showList(m)}
+      else say('الباركود '+code+' غير موجود في الملف',1);
     },()=>{});
     scanning=true;$('bScan').textContent='⏹ إيقاف الكاميرا';
   }catch(e){say('تعذر تشغيل الكاميرا. اسمح بالوصول للكاميرا أو افتح الرابط في Chrome مباشرة، أو استخدم البحث.',1)}
 };
 
-$('bExp').onclick=async()=>{
-  const rows=[['id','product name','quantity']];
-  products.forEach(p=>{if(counts[p.id]!=null)rows.push([p.id,p.name,counts[p.id]])});
-  if(rows.length<2){say('لا توجد كميات لتصديرها',1);return}
-  const ws=XLSX.utils.aoa_to_sheet(rows);const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Inventory');
-  const d=new Date().toISOString().slice(0,10),name=`inventory-${d}.xlsx`;
+async function exportFile(){
+  const rows=[hdr];
+  products.forEach(p=>{if(counts[p.id]!=null)rows.push([p.x,p.rawbc,p.name,p.qty,counts[p.id],p.unit,p.loc])});
+  if(rows.length<2){say('لا توجد كميات لتصديرها',1);return false}
+  const ws=XLSX.utils.aoa_to_sheet(rows);const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Sheet1');
+  const name=`inventory-${new Date().toISOString().slice(0,10)}.xlsx`;
   try{
     const P=window.Capacitor&&Capacitor.Plugins;
     if(P&&P.Filesystem&&P.Share){
       const b64=XLSX.write(wb,{bookType:'xlsx',type:'base64'});
       const r=await P.Filesystem.writeFile({path:name,data:b64,directory:'CACHE'});
-      await P.Share.share({title:name,url:r.uri,dialogTitle:'حفظ / مشاركة ملف الجرد'});
-      say('تم تجهيز الملف');
+      try{await P.Share.share({title:name,url:r.uri,dialogTitle:'حفظ / مشاركة ملف الجرد'})}catch(se){}
     }else{
       const blob=new Blob([XLSX.write(wb,{bookType:'xlsx',type:'array'})],{type:'application/octet-stream'});
       const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click();
-      say('تم تحميل الملف');
     }
-  }catch(e){say('تعذر التصدير',1)}
+    say('تم تجهيز الملف');return true;
+  }catch(e){say('تعذر التصدير',1);return false}
+}
+$('bExp').onclick=exportFile;
+
+$('bFin').onclick=async()=>{
+  const pw=await dlg('أدخل كلمة المرور لإنهاء الجرد',{input:true});
+  if(pw===null)return;
+  if(norm(pw)!=='2027'){say('كلمة المرور غير صحيحة',1);return}
+  if(!(await exportFile()))return;
+  const ok=await dlg('هل تم حفظ ملف الجرد بنجاح؟ سيتم تصفير الكميات المسجلة.',{yes:'نعم، صفّر الكميات',no:'لا، احتفظ بالكميات'});
+  if(ok){counts={};save();stat();say('تم إنهاء الجرد وتصفير الكميات')}
+  else say('لم يتم التصفير، الكميات محفوظة',1);
 };
 
 const nm=t=>norm(t).replace(/[أإآ]/g,'ا').replace(/\s+/g,' ');
